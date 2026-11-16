@@ -1,0 +1,6 @@
+{
+  "name": "BlokEvren — 3D Voxel Hayatta Kalma & Yaratıcılık",
+  "description": "Firebase bulut sunucuları, kodla çok oyunculu odalar, karakter skin tasarımcısı ve topluluk mod atölyesi içeren 3D blok tabanlı hayatta kalma ve yaratıcılık evreni.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

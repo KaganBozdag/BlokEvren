@@ -1,0 +1,476 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core helper primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidJoinCode(code) {
+      return code is string && code.size() == 6 && code.matches('^[A-Z0-9]{6}$');
+    }
+
+    function isValidBlockKey(key) {
+      return key is string && key.size() >= 5 && key.size() <= 48 && key.matches('^\\-?[0-9]+_\\-?[0-9]+_\\-?[0-9]+$');
+    }
+
+    function isValidUsername(uname) {
+      return uname is string && uname.size() >= 3 && uname.size() <= 20 && uname.matches('^[a-z0-9_]+$');
+    }
+
+    // Validation helpers
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'activeSkinId', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'username', 'displayName', 'activeSkinId', 'installedModIds', 'unlockedAchievements', 'achievementStats', 'updatedAt']) &&
+        data.uid is string && data.uid == request.auth.uid && data.uid.size() <= 128 &&
+        (!('username' in data) || isValidUsername(data.username)) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 64 &&
+        data.activeSkinId is string && data.activeSkinId.size() <= 128 &&
+        (!('installedModIds' in data) || (data.installedModIds is list && data.installedModIds.size() <= 32 && (data.installedModIds.size() == 0 || data.installedModIds[0] is string))) &&
+        (!('unlockedAchievements' in data) || (data.unlockedAchievements is map && data.unlockedAchievements.size() <= 128)) &&
+        (!('achievementStats' in data) || (data.achievementStats is map && data.achievementStats.size() <= 64)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUsernameClaim(data) {
+      return data.keys().hasAll(['username', 'uid', 'createdAt']) &&
+        data.keys().hasOnly(['username', 'uid', 'createdAt']) &&
+        isValidUsername(data.username) &&
+        data.uid is string && data.uid == request.auth.uid && data.uid.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidFriendRequest(data) {
+      return data.keys().hasAll(['id', 'fromUid', 'fromUsername', 'toUid', 'toUsername', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'fromUid', 'fromUsername', 'toUid', 'toUsername', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.fromUid is string && data.fromUid.size() >= 1 && data.fromUid.size() <= 128 &&
+        isValidUsername(data.fromUsername) &&
+        data.toUid is string && data.toUid.size() >= 1 && data.toUid.size() <= 128 &&
+        isValidUsername(data.toUsername) &&
+        data.status in ['pending', 'accepted', 'rejected'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFriendLink(data) {
+      return data.keys().hasAll(['ownerUid', 'friendUid', 'friendUsername', 'addedAt']) &&
+        data.keys().hasOnly(['ownerUid', 'friendUid', 'friendUsername', 'addedAt']) &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+        data.friendUid is string && data.friendUid.size() >= 1 && data.friendUid.size() <= 128 &&
+        isValidUsername(data.friendUsername) &&
+        data.addedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+        data.keys().hasOnly(['uid', 'email']) &&
+        data.uid is string && data.uid == request.auth.uid && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() <= 200;
+    }
+
+    function isValidSkin(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name', 'headFront', 'headSide', 'headTop', 'torso', 'arm', 'leg', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'ownerId', 'name', 'headFront', 'headSide', 'headTop', 'torso', 'arm', 'leg', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 48 &&
+        data.headFront is string && data.headFront.size() <= 600 &&
+        data.headSide is string && data.headSide.size() <= 600 &&
+        data.headTop is string && data.headTop.size() <= 600 &&
+        data.torso is string && data.torso.size() <= 600 &&
+        data.arm is string && data.arm.size() <= 600 &&
+        data.leg is string && data.leg.size() <= 600 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPlayerWorldSave(data) {
+      return data.keys().hasAll(['worldKey', 'ownerId', 'gameMode', 'health', 'hunger', 'x', 'y', 'z', 'slots', 'updatedAt']) &&
+        data.keys().hasOnly(['worldKey', 'ownerId', 'gameMode', 'health', 'hunger', 'x', 'y', 'z', 'slots', 'updatedAt']) &&
+        isValidId(data.worldKey) &&
+        data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
+        data.gameMode in ['survival', 'creative'] &&
+        data.health is number && data.health >= 0 && data.health <= 20 &&
+        data.hunger is number && data.hunger >= 0 && data.hunger <= 20 &&
+        data.x is number && data.y is number && data.z is number &&
+        data.slots is map && data.slots.size() <= 40 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServerCode(data) {
+      return data.keys().hasAll(['code', 'serverId', 'ownerId', 'worldName', 'createdAt']) &&
+        data.keys().hasOnly(['code', 'serverId', 'ownerId', 'worldName', 'createdAt']) &&
+        isValidJoinCode(data.code) &&
+        isValidId(data.serverId) &&
+        data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId.size() <= 128 &&
+        data.worldName is string && data.worldName.size() >= 1 && data.worldName.size() <= 64 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidGameServer(data) {
+      return data.keys().hasAll(['id', 'joinCode', 'worldName', 'ownerId', 'ownerName', 'worldType', 'defaultGameMode', 'seed', 'isPublic', 'timeOfDay', 'activeModIds', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'joinCode', 'worldName', 'ownerId', 'ownerName', 'worldType', 'defaultGameMode', 'seed', 'isPublic', 'timeOfDay', 'activeModIds', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidJoinCode(data.joinCode) &&
+        data.worldName is string && data.worldName.size() >= 1 && data.worldName.size() <= 64 &&
+        data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128 &&
+        data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 64 &&
+        data.worldType in ['normal', 'flat'] &&
+        data.defaultGameMode in ['survival', 'creative'] &&
+        data.seed is number &&
+        data.isPublic is bool &&
+        data.timeOfDay is number && data.timeOfDay >= 0 && data.timeOfDay <= 24000 &&
+        data.activeModIds is list && data.activeModIds.size() <= 24 && (data.activeModIds.size() == 0 || data.activeModIds[0] is string) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServerPlayer(data) {
+      return data.keys().hasAll(['uid', 'serverId', 'displayName', 'x', 'y', 'z', 'yaw', 'pitch', 'gameMode', 'heldItemId', 'skinData', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'serverId', 'displayName', 'x', 'y', 'z', 'yaw', 'pitch', 'gameMode', 'heldItemId', 'skinData', 'updatedAt']) &&
+        data.uid is string && data.uid == request.auth.uid && data.uid.size() <= 128 &&
+        isValidId(data.serverId) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 64 &&
+        data.x is number && data.y is number && data.z is number &&
+        data.yaw is number && data.pitch is number &&
+        data.gameMode in ['survival', 'creative'] &&
+        data.heldItemId is string && data.heldItemId.size() <= 64 &&
+        data.skinData is map && data.skinData.size() <= 10 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServerBlock(data) {
+      return data.keys().hasAll(['serverId', 'x', 'y', 'z', 'blockId', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['serverId', 'x', 'y', 'z', 'blockId', 'updatedBy', 'updatedAt']) &&
+        isValidId(data.serverId) &&
+        data.x is number && data.y is number && data.z is number &&
+        data.y >= 0 && data.y <= 128 &&
+        data.blockId is string && data.blockId.size() >= 1 && data.blockId.size() <= 64 &&
+        data.updatedBy is string && data.updatedBy == request.auth.uid && data.updatedBy.size() <= 128 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidServerMessage(data) {
+      return data.keys().hasAll(['serverId', 'senderId', 'senderName', 'text', 'kind', 'createdAt']) &&
+        data.keys().hasOnly(['serverId', 'senderId', 'senderName', 'text', 'kind', 'createdAt']) &&
+        isValidId(data.serverId) &&
+        data.senderId is string && data.senderId == request.auth.uid && data.senderId.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 64 &&
+        data.text is string && data.text.size() >= 1 && data.text.size() <= 400 &&
+        data.kind in ['chat', 'system', 'command'] &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidMod(data) {
+      return data.keys().hasAll(['id', 'authorId', 'authorName', 'name', 'description', 'version', 'isPublic', 'likes', 'blocks', 'tools', 'recipes', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'authorId', 'authorName', 'name', 'description', 'version', 'isPublic', 'likes', 'blocks', 'items', 'tools', 'recipes', 'commands', 'achievements', 'isCottonLua', 'isApi', 'luaSource', 'dependencies', 'pngTextures', 'models3d', 'assets', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 128 &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 64 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 64 &&
+        data.description is string && data.description.size() <= 300 &&
+        data.version is string && data.version.size() >= 1 && data.version.size() <= 16 &&
+        data.isPublic is bool &&
+        data.likes is number && data.likes >= 0 &&
+        data.blocks is list && data.blocks.size() <= 24 && (data.blocks.size() == 0 || data.blocks[0] is map) &&
+        (!('items' in data) || (data.items is list && data.items.size() <= 24 && (data.items.size() == 0 || data.items[0] is map))) &&
+        data.tools is list && data.tools.size() <= 12 && (data.tools.size() == 0 || data.tools[0] is map) &&
+        data.recipes is list && data.recipes.size() <= 32 && (data.recipes.size() == 0 || data.recipes[0] is map) &&
+        (!('commands' in data) || (data.commands is list && data.commands.size() <= 16 && (data.commands.size() == 0 || data.commands[0] is map))) &&
+        (!('achievements' in data) || (data.achievements is list && data.achievements.size() <= 24 && (data.achievements.size() == 0 || data.achievements[0] is map))) &&
+        (!('isCottonLua' in data) || data.isCottonLua is bool) &&
+        (!('isApi' in data) || data.isApi is bool) &&
+        (!('luaSource' in data) || (data.luaSource is string && data.luaSource.size() <= 45000)) &&
+        (!('dependencies' in data) || (data.dependencies is list && data.dependencies.size() <= 16)) &&
+        (!('pngTextures' in data) || (data.pngTextures is map && data.pngTextures.size() <= 24)) &&
+        (!('models3d' in data) || (data.models3d is map && data.models3d.size() <= 16)) &&
+        (!('assets' in data) || (data.assets is map && data.assets.size() <= 24)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Connection probe
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // User Profiles & Cloud Data (strict owner-only + PII isolation)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isVerified() && isOwner(userId) && isValidId(userId) &&
+        isValidUserProfile(incoming()) && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isOwner(userId) && isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['username', 'displayName', 'activeSkinId', 'installedModIds', 'unlockedAchievements', 'achievementStats', 'updatedAt']) &&
+        (!('username' in incoming()) ||
+          (('username' in existing()) && incoming().username == existing().username) ||
+          (isValidUsername(incoming().username) &&
+            existsAfter(/databases/$(database)/documents/usernames/$(incoming().username)) &&
+            getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == request.auth.uid));
+
+      match /private/info {
+        allow get: if isOwner(userId) && isValidId(userId);
+        allow create: if isVerified() && isOwner(userId) && isValidId(userId) &&
+          isValidUserPrivateInfo(incoming());
+        allow update: if isVerified() && isOwner(userId) && isValidId(userId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['email']);
+      }
+
+      match /skins/{skinId} {
+        allow get: if isOwner(userId) && isValidId(skinId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerified() && isOwner(userId) && isValidId(skinId) &&
+          isValidSkin(incoming()) &&
+          incoming().id == skinId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time;
+        allow update: if isVerified() && isOwner(userId) && isValidId(skinId) &&
+          isValidSkin(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'headFront', 'headSide', 'headTop', 'torso', 'arm', 'leg', 'updatedAt']);
+        allow delete: if isVerified() && isOwner(userId) && isValidId(skinId);
+      }
+
+      match /playerData/{worldKey} {
+        allow get: if isOwner(userId) && isValidId(worldKey);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isVerified() && isOwner(userId) && isValidId(worldKey) &&
+          isValidPlayerWorldSave(incoming()) &&
+          incoming().worldKey == worldKey &&
+          incoming().updatedAt == request.time;
+        allow update: if isVerified() && isOwner(userId) && isValidId(worldKey) &&
+          isValidPlayerWorldSave(incoming()) &&
+          incoming().worldKey == existing().worldKey &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['gameMode', 'health', 'hunger', 'x', 'y', 'z', 'slots', 'updatedAt']);
+        allow delete: if isVerified() && isOwner(userId) && isValidId(worldKey);
+      }
+
+      match /friends/{friendUid} {
+        allow get: if isOwner(userId) && isValidId(friendUid);
+        allow list: if isOwner(userId) && resource.data.ownerUid == request.auth.uid;
+        allow create: if isVerified() && isValidId(userId) && isValidId(friendUid) &&
+          isValidFriendLink(incoming()) &&
+          incoming().ownerUid == userId &&
+          incoming().friendUid == friendUid &&
+          userId != friendUid &&
+          incoming().addedAt == request.time &&
+          (
+            (request.auth.uid == userId &&
+              existsAfter(/databases/$(database)/documents/friendRequests/$(friendUid + '_' + userId)) &&
+              getAfter(/databases/$(database)/documents/friendRequests/$(friendUid + '_' + userId)).data.status == 'accepted') ||
+            (request.auth.uid == friendUid &&
+              existsAfter(/databases/$(database)/documents/friendRequests/$(userId + '_' + friendUid)) &&
+              getAfter(/databases/$(database)/documents/friendRequests/$(userId + '_' + friendUid)).data.status == 'accepted')
+          );
+        allow delete: if isVerified() && isValidId(userId) && isValidId(friendUid) &&
+          (request.auth.uid == userId || request.auth.uid == friendUid);
+      }
+    }
+
+    // Unique Username Lookup Registry
+    match /usernames/{username} {
+      allow get: if isSignedIn() && isValidUsername(username);
+      allow create: if isVerified() && isValidUsername(username) &&
+        isValidUsernameClaim(incoming()) &&
+        incoming().username == username &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.username == username;
+      allow delete: if isVerified() && isValidUsername(username) &&
+        existing().uid == request.auth.uid;
+    }
+
+    // Friend Requests between Google-authenticated players
+    match /friendRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) &&
+        (resource == null || resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow list: if isSignedIn() &&
+        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+      allow create: if isVerified() && isValidId(requestId) &&
+        isValidFriendRequest(incoming()) &&
+        incoming().id == requestId &&
+        requestId == incoming().fromUid + '_' + incoming().toUid &&
+        incoming().fromUid == request.auth.uid &&
+        incoming().toUid != request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(incoming().toUid));
+      allow update: if isVerified() && isValidId(requestId) &&
+        isValidFriendRequest(incoming()) &&
+        existing().toUid == request.auth.uid &&
+        existing().status == 'pending' &&
+        incoming().status in ['accepted', 'rejected'] &&
+        incoming().id == existing().id &&
+        incoming().fromUid == existing().fromUid &&
+        incoming().fromUsername == existing().fromUsername &&
+        incoming().toUid == existing().toUid &&
+        incoming().toUsername == existing().toUsername &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+        (incoming().status == 'rejected' ||
+          (existsAfter(/databases/$(database)/documents/users/$(existing().fromUid)/friends/$(existing().toUid)) &&
+           existsAfter(/databases/$(database)/documents/users/$(existing().toUid)/friends/$(existing().fromUid))));
+      allow delete: if isVerified() && isValidId(requestId) &&
+        (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+    }
+
+    // Server Join Codes (direct get only, no listing!)
+    match /serverCodes/{code} {
+      allow get: if isSignedIn() && isValidJoinCode(code);
+      allow create: if isVerified() && isValidJoinCode(code) &&
+        isValidServerCode(incoming()) &&
+        incoming().code == code &&
+        incoming().createdAt == request.time;
+      allow delete: if isVerified() && isValidJoinCode(code) &&
+        existing().ownerId == request.auth.uid;
+    }
+
+    // Game Servers
+    match /servers/{serverId} {
+      allow get: if isSignedIn() && isValidId(serverId);
+      allow list: if isSignedIn() && (resource.data.isPublic == true || resource.data.ownerId == request.auth.uid);
+      allow create: if isVerified() && isValidId(serverId) &&
+        isValidGameServer(incoming()) &&
+        incoming().id == serverId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(serverId) &&
+        isValidGameServer(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().joinCode == existing().joinCode &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().seed == existing().seed &&
+        incoming().worldType == existing().worldType &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (existing().ownerId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['worldName', 'defaultGameMode', 'isPublic', 'timeOfDay', 'activeModIds', 'updatedAt'])) ||
+          (exists(/databases/$(database)/documents/servers/$(serverId)/players/$(request.auth.uid)) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['timeOfDay', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(serverId) &&
+        existing().ownerId == request.auth.uid;
+
+      // Server Players (real-time presence & skins)
+      match /players/{playerId} {
+        allow get: if isSignedIn() && isValidId(serverId) && isValidId(playerId);
+        allow list: if isSignedIn() && resource.data.serverId == serverId;
+        allow create: if isVerified() && isValidId(serverId) && isValidId(playerId) &&
+          playerId == request.auth.uid &&
+          isValidServerPlayer(incoming()) &&
+          incoming().serverId == serverId &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/servers/$(serverId));
+        allow update: if isVerified() && isValidId(serverId) && isValidId(playerId) &&
+          playerId == request.auth.uid &&
+          isValidServerPlayer(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().serverId == existing().serverId &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'x', 'y', 'z', 'yaw', 'pitch', 'gameMode', 'heldItemId', 'skinData', 'updatedAt']);
+        allow delete: if isVerified() && isValidId(serverId) && isValidId(playerId) &&
+          (playerId == request.auth.uid ||
+            get(/databases/$(database)/documents/servers/$(serverId)).data.ownerId == request.auth.uid);
+      }
+
+      // Server Block Deltas
+      match /blocks/{blockKey} {
+        allow get: if isSignedIn() && isValidId(serverId) && isValidBlockKey(blockKey);
+        allow list: if isSignedIn() && resource.data.serverId == serverId;
+        allow create: if isVerified() && isValidId(serverId) && isValidBlockKey(blockKey) &&
+          isValidServerBlock(incoming()) &&
+          incoming().serverId == serverId &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/servers/$(serverId));
+        allow update: if isVerified() && isValidId(serverId) && isValidBlockKey(blockKey) &&
+          isValidServerBlock(incoming()) &&
+          incoming().serverId == existing().serverId &&
+          incoming().x == existing().x &&
+          incoming().y == existing().y &&
+          incoming().z == existing().z &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['blockId', 'updatedBy', 'updatedAt']);
+      }
+
+      // Server Chat Messages
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(serverId) && isValidId(messageId);
+        allow list: if isSignedIn() && resource.data.serverId == serverId;
+        allow create: if isVerified() && isValidId(serverId) && isValidId(messageId) &&
+          isValidServerMessage(incoming()) &&
+          incoming().serverId == serverId &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/servers/$(serverId));
+      }
+    }
+
+    // Community Mods
+    match /mods/{modId} {
+      allow get: if isSignedIn() && isValidId(modId) &&
+        (resource.data.isPublic == true || resource.data.authorId == request.auth.uid);
+      allow list: if isSignedIn() &&
+        (resource.data.isPublic == true || resource.data.authorId == request.auth.uid);
+      allow create: if isVerified() && isValidId(modId) &&
+        isValidMod(incoming()) &&
+        incoming().id == modId &&
+        incoming().authorId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(modId) &&
+        isValidMod(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().authorId == existing().authorId &&
+        incoming().authorName == existing().authorName &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (existing().authorId == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'version', 'isPublic', 'blocks', 'items', 'tools', 'recipes', 'commands', 'achievements', 'isCottonLua', 'isApi', 'luaSource', 'dependencies', 'pngTextures', 'models3d', 'assets', 'updatedAt'])) ||
+          (existing().isPublic == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'updatedAt']))
+        );
+      allow delete: if isVerified() && isValidId(modId) &&
+        existing().authorId == request.auth.uid;
+    }
+  }
+}

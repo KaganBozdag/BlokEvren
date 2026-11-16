@@ -1,0 +1,274 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public-safe user profile and active skin reference stored per authenticated player.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-z0-9_]+$" },
+        "displayName": { "type": "string", "maxLength": 64 },
+        "activeSkinId": { "type": "string", "maxLength": 128 },
+        "installedModIds": { "type": "array" },
+        "unlockedAchievements": { "type": "object" },
+        "achievementStats": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "activeSkinId", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII document for user email.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["uid", "email"]
+    },
+    "PlayerSkin": {
+      "title": "PlayerSkin",
+      "description": "Custom 8x8 pixel-grid voxel character skin created in the in-game skin designer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 48 },
+        "headFront": { "type": "string", "maxLength": 600 },
+        "headSide": { "type": "string", "maxLength": 600 },
+        "headTop": { "type": "string", "maxLength": 600 },
+        "torso": { "type": "string", "maxLength": 600 },
+        "arm": { "type": "string", "maxLength": 600 },
+        "leg": { "type": "string", "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "headFront", "headSide", "headTop", "torso", "arm", "leg", "createdAt", "updatedAt"]
+    },
+    "PlayerWorldSave": {
+      "title": "PlayerWorldSave",
+      "description": "Cloud-saved player inventory, stats, game mode, and coordinates for a world or server.",
+      "type": "object",
+      "properties": {
+        "worldKey": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "gameMode": { "type": "string", "enum": ["survival", "creative"] },
+        "health": { "type": "number" },
+        "hunger": { "type": "number" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "slots": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["worldKey", "ownerId", "gameMode", "health", "hunger", "x", "y", "z", "slots", "updatedAt"]
+    },
+    "ServerCodeLookup": {
+      "title": "ServerCodeLookup",
+      "description": "Direct 6-character server join code to serverId lookup.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 8, "pattern": "^[A-Z0-9]{6}$" },
+        "serverId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "worldName": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "serverId", "ownerId", "worldName", "createdAt"]
+    },
+    "GameServer": {
+      "title": "GameServer",
+      "description": "Firebase-hosted voxel multiplayer server world with deterministic seed and mode.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "joinCode": { "type": "string", "maxLength": 8, "pattern": "^[A-Z0-9]{6}$" },
+        "worldName": { "type": "string", "maxLength": 64 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "ownerName": { "type": "string", "maxLength": 64 },
+        "worldType": { "type": "string", "enum": ["normal", "flat"] },
+        "defaultGameMode": { "type": "string", "enum": ["survival", "creative"] },
+        "seed": { "type": "number" },
+        "isPublic": { "type": "boolean" },
+        "timeOfDay": { "type": "number" },
+        "activeModIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "joinCode", "worldName", "ownerId", "ownerName", "worldType", "defaultGameMode", "seed", "isPublic", "timeOfDay", "activeModIds", "createdAt", "updatedAt"]
+    },
+    "ServerPlayer": {
+      "title": "ServerPlayer",
+      "description": "Real-time presence, coordinates, and skin appearance of a player inside a server.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "serverId": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 64 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "yaw": { "type": "number" },
+        "pitch": { "type": "number" },
+        "gameMode": { "type": "string", "enum": ["survival", "creative"] },
+        "heldItemId": { "type": "string", "maxLength": 64 },
+        "skinData": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "serverId", "displayName", "x", "y", "z", "yaw", "pitch", "gameMode", "heldItemId", "skinData", "updatedAt"]
+    },
+    "ServerBlockDelta": {
+      "title": "ServerBlockDelta",
+      "description": "Single voxel block placement or removal synced across a multiplayer server.",
+      "type": "object",
+      "properties": {
+        "serverId": { "type": "string", "maxLength": 128 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "blockId": { "type": "string", "maxLength": 64 },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["serverId", "x", "y", "z", "blockId", "updatedBy", "updatedAt"]
+    },
+    "ServerMessage": {
+      "title": "ServerMessage",
+      "description": "Real-time chat or system announcement in a multiplayer server.",
+      "type": "object",
+      "properties": {
+        "serverId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 64 },
+        "text": { "type": "string", "maxLength": 400 },
+        "kind": { "type": "string", "enum": ["chat", "system", "command"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["serverId", "senderId", "senderName", "text", "kind", "createdAt"]
+    },
+    "CommunityMod": {
+      "title": "CommunityMod",
+      "description": "Player-created voxel mod package with custom blocks, tools, and crafting recipes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 300 },
+        "version": { "type": "string", "maxLength": 16 },
+        "isPublic": { "type": "boolean" },
+        "likes": { "type": "number" },
+        "blocks": { "type": "array" },
+        "items": { "type": "array" },
+        "tools": { "type": "array" },
+        "recipes": { "type": "array" },
+        "commands": { "type": "array" },
+        "achievements": { "type": "array" },
+        "isCottonLua": { "type": "boolean" },
+        "isApi": { "type": "boolean" },
+        "luaSource": { "type": "string", "maxLength": 45000 },
+        "dependencies": { "type": "array" },
+        "pngTextures": { "type": "object" },
+        "models3d": { "type": "object" },
+        "assets": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "name", "description", "version", "isPublic", "likes", "blocks", "tools", "recipes", "createdAt", "updatedAt"]
+    },
+    "UsernameLookup": {
+      "title": "UsernameLookup",
+      "description": "Unique lowercase username reservation mapping to a player UID.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-z0-9_]+$" },
+        "uid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "uid", "createdAt"]
+    },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "Pending, accepted, or rejected friend request between two Google-authenticated accounts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 256, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fromUid": { "type": "string", "maxLength": 128 },
+        "fromUsername": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-z0-9_]+$" },
+        "toUid": { "type": "string", "maxLength": 128 },
+        "toUsername": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-z0-9_]+$" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fromUid", "fromUsername", "toUid", "toUsername", "status", "createdAt", "updatedAt"]
+    },
+    "FriendLink": {
+      "title": "FriendLink",
+      "description": "Mutual friend link stored inside each user's friends subcollection.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "friendUid": { "type": "string", "maxLength": 128 },
+        "friendUsername": { "type": "string", "minLength": 3, "maxLength": 20, "pattern": "^[a-z0-9_]+$" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "friendUid", "friendUsername", "addedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Player cloud profile."
+    },
+    "/users/{userId}/private/info": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII storage."
+    },
+    "/users/{userId}/skins/{skinId}": {
+      "schema": { "$ref": "#/entities/PlayerSkin" },
+      "description": "Saved custom skins for a player."
+    },
+    "/users/{userId}/playerData/{worldKey}": {
+      "schema": { "$ref": "#/entities/PlayerWorldSave" },
+      "description": "Saved inventory, health, hunger, and position per world or server."
+    },
+    "/serverCodes/{code}": {
+      "schema": { "$ref": "#/entities/ServerCodeLookup" },
+      "description": "6-character server join code lookup table."
+    },
+    "/servers/{serverId}": {
+      "schema": { "$ref": "#/entities/GameServer" },
+      "description": "Multiplayer voxel server worlds."
+    },
+    "/servers/{serverId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/ServerPlayer" },
+      "description": "Live connected players in a server."
+    },
+    "/servers/{serverId}/blocks/{blockKey}": {
+      "schema": { "$ref": "#/entities/ServerBlockDelta" },
+      "description": "Block placement/break deltas for a server."
+    },
+    "/servers/{serverId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ServerMessage" },
+      "description": "Server chat messages."
+    },
+    "/users/{userId}/friends/{friendUid}": {
+      "schema": { "$ref": "#/entities/FriendLink" },
+      "description": "Confirmed friends for a player."
+    },
+    "/usernames/{username}": {
+      "schema": { "$ref": "#/entities/UsernameLookup" },
+      "description": "Unique lowercase username to UID lookup registry."
+    },
+    "/friendRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/FriendRequest" },
+      "description": "Friend requests sent between authenticated players."
+    },
+    "/mods/{modId}": {
+      "schema": { "$ref": "#/entities/CommunityMod" },
+      "description": "Community-shared and personal voxel mods."
+    }
+  }
+}
